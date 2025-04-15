@@ -258,7 +258,7 @@ allow_loading_unsigned_plugins = deepflow-querier-datasource,deepflow-apptracing
 
 本文部署的采集器类型为 **传统服务器模式**。部署流程参考按照文章 [监控传统服务器](https://www.deepflow.io/docs/zh/ce-install/legacy-host/) 依次执行即可，最终通过 **`systemctl`** 管理。下方所列流程为使用 Docker 启动采集器所需步骤：
 
-1. 由于宿主机网络不能使用端口映射，默认映射到宿主机的**``30033/30035``**都恢复原始的**``20033/20035``**，需通过[deepflow-ctl](https://www.deepflow.io/docs/zh/best-practice/agent-advanced-config/)更改采集器使用的默认[组配置](https://www.deepflow.io/docs/zh/configuration/agent/)：
+1. 由于宿主机网络不能使用端口映射，默认映射到宿主机的**`30033/30035`**都恢复原始的**`20033/20035`**，需通过[deepflow-ctl](https://www.deepflow.io/docs/zh/best-practice/agent-advanced-config/)更改采集器使用的默认[组配置](https://www.deepflow.io/docs/zh/configuration/agent/)：
 
 ```yaml
 global:
