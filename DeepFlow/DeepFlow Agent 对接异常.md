@@ -330,9 +330,9 @@ Server 启动失败时，问题通常源于 MySQL 的 `db_version` 值不同步�
 
 - **本次为首次部署 DeepFlow**：可能由于 deepflow-server 初始化异常导致。可以通过 **`mysql -uroot -pdeepflow`** 连接 mysql 后更改 **`deepflow.db_version`** 为 server log 提示版本即可；
 
-<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20250415222425850.png" style="zoom:80%;" />
+<img src="./picture/image-20250415222425850.png" style="zoom:80%;" />
 
-<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20250415222854038.png" alt="image-20250415222854038" style="zoom:80%;" />
+<img src="./picture/image-20250415222854038.png" alt="image-20250415222854038" style="zoom:80%;" />
 
 
 
@@ -340,14 +340,14 @@ Server 启动失败时，问题通常源于 MySQL 的 `db_version` 值不同步�
 
 在本文的部署流程中，采集器最容易出现的问题是注册失败，在采集器日志中表现为此种情况，提示需要检查是否注册成功
 
-<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20250415230102344.png" alt="image-20250415230102344" style="zoom:80%;" />
+<img src="./picture/image-20250415230102344.png" alt="image-20250415230102344" style="zoom:80%;" />
 
 #### 传统服务器采集器注册失败排查流程
 
 1. 查看当前采集器主机网卡是否被默认 **agent-group-config** 组配置中的 [网卡匹配正则](https://www.deepflow.io/docs/zh/configuration/agent/#inputs.cbpf.af_packet.interface_regex) 匹配。如果不在正则匹配范围内，需通过 [deepflow-ctl](https://www.deepflow.io/docs/zh/best-practice/agent-advanced-config/) 更改正则范围。
 2. 过滤 server log 中的 `\[trisolaris\.agentsynchronize\]` 字段，检查其中 Agent IP 和 MAC 是否与实际主机网卡信息一致:
 
-<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20250416001952565.png" alt="image-20250416001952565" style="zoom:80%;" />
+<img src="./picture/image-20250416001952565.png" alt="image-20250416001952565" style="zoom:80%;" />
 
 3. 采集器 IP 被识别为外网：检查采集器 IP 是否包含在 Server [可识别的内网网段](https://www.deepflow.io/docs/zh/ce-install/legacy-host/#%E6%9B%B4%E6%96%B0-deepflow-server-%E9%85%8D%E7%BD%AE ) 中。如果不在列表，需手动将网段添加到 Server 配置。
 
