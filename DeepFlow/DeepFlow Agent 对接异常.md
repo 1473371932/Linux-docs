@@ -9,19 +9,21 @@
 
 ## Docker 形式部署 Server 与 Agent
 
-正式环境下我们并不推荐 Docker 形式部署，因为 Server 选主是通过 k8s Lease 来实现的。如果通过 Docker 启动，则无法扩容，并且 ClickHouse 也只能使用单分片
+在生产环境中，我们并不推荐使用 Docker 部署 DeepFlow 组件。原因在于 Server 的选主机制依赖 Kubernetes 的 Lease 功能，而 Docker 部署无法支持这一机制。此外 Docker 模式下，DeepFlow Server 和 ClickHouse 均不支持水平/切片扩展，这会限制系统的扩展性和高可用性。
 
-使用 Docker 启动 DeepFlow 组件时，如需使用宿主机网络（HostNetwork），还需要对默认提供的 docker compose 做一些改造，例如**`.env`**环境变量中更改**`NODE_IP`**为当前主机 IP：
+### 部署流程（Server）
+
+1. 若需部署 DeepFlow 组件，请按照 [DeepFlow-DockerAllinOne 部署文档](https://deepflow.io/docs/zh/ce-install/all-in-one/#部署-all-in-one-deepflow-2) 的流程操作。若需使用宿主机网络（HostNetwork），需要对默认的 Docker Compose 配置进行改造。具体操作为：修改 `.env` 文件中的 `NODE_IP` 环境变量，将其设置为当前主机的 IP 地址：
 
 ```yaml
 # DEEPFLOW VERSION TO DEPLOY
 DEEPFLOW_VERSION=v6.6
 
 # NODE_IP_FOR_DEEPFLOW
-NODE_IP_FOR_DEEPFLOW=10.50.72.100
+NODE_IP_FOR_DEEPFLOW=${当前主机 IP}  #FIXME
 ```
 
-更改**`docker-compose`**部分与网络、IP 相关配置：
+2. 调整 **``docker-compose.yaml``** 文件，将服务更改为宿主机网络：
 
 ```yaml
 version: '3.2'
@@ -214,7 +216,7 @@ services:
 #    external: false
 ```
 
-更改**`deepflow-docker-compose/common/config/`**目录下所有与**`host`**相关的配置：
+3. 更改 **`deepflow-docker-compose/common/config/`** 目录下所有与**`host`**相关的配置，以其中配置较为简短的举例：
 
 ```bash
 oot@network-demo:~/deepflow-docker-compose# ll common/config/{deepflow-server,deepflow-app,grafana}
@@ -228,10 +230,8 @@ common/config/grafana:
 -rw-r--r-- 1 1001 docker 523 Apr 14 22:40 grafana.ini
 ```
 
-以其中配置较为简短的举例：
-
-```yaml
-root@network-demo:~/deepflow-docker-compose# cat common/config/grafana/grafana.ini 
+```ini
+## root@network-demo:~/deepflow-docker-compose# cat common/config/grafana/grafana.ini 
 [analytics]
 check_for_updates = true
 [database]
@@ -252,5 +252,165 @@ plugins = /var/lib/grafana/plugins
 provisioning = /etc/grafana/provisioning
 [plugins]
 allow_loading_unsigned_plugins = deepflow-querier-datasource,deepflow-apptracing-panel,deepflow-topo-panel,deepflowio-tracing-panel,deepflowio-deepflow-datasource,deepflowio-topo-panel
+```
+
+### 部署流程（Agent）
+
+本文部署的采集器类型为 **传统服务器模式**。部署流程参考按照文章 [监控传统服务器](https://www.deepflow.io/docs/zh/ce-install/legacy-host/) 依次执行即可，最终通过 **`systemctl`** 管理。下方所列流程为使用 Docker 启动采集器所需步骤：
+
+1. 由于宿主机网络不能使用端口映射，默认映射到宿主机的**``30033/30035``**都恢复原始的**``20033/20035``**，需通过[deepflow-ctl](https://www.deepflow.io/docs/zh/best-practice/agent-advanced-config/)更改采集器使用的默认[组配置](https://www.deepflow.io/docs/zh/configuration/agent/)：
+
+```yaml
+global:
+  communication:
+    ingester_port: 20033  #FIXME: 如果 agent 与 server 间存在 lb，此处应为 lb port
+    ingester_ip: "${DEEPFLOW_SERVER_IP}"  #FIXME: 如果 agent 与 server 间存在 lb，此处应为 lb ip
+    proxy_controller_port: 20035  #FIXME: 如果 agent 与 server 间存在 lb，此处应为 lb port
+    proxy_controller_ip: "${DEEPFLOW_SERVER_IP}"  #FIXME 如果 agent 与 server 间存在 lb，此处应为 lb ip
+
+inputs:
+  resources:
+    private_cloud:
+      ## 本文 agent 使用宿主机网络部署，需开启此配置
+      ## https://www.deepflow.io/docs/zh/configuration/agent/#inputs.resources.private_cloud.hypervisor_resource_enabled
+      hypervisor_resource_enabled: true
+```
+
+2. 更改**``deepflow-agent``**连接**``deepflow-server``**的配置文件：
+
+```yaml
+##root@network-demo:~/deepflow-docker-compose# cat /etc/deepflow-agent.yaml 
+controller-ips:
+- 10.50.72.100
+
+## 通过此端口向 server 注册
+controller-port: 20035
+
+## 组配置通过 deepflow-ctl 
+vtap-group-id-request: "g-TE8la86jlZ"
+```
+
+3. 通过 Docker 启动采集器：
+
+```yaml
+version: '3.2'
+services:
+  deepflow-agent:
+    image: registry.cn-beijing.aliyuncs.com/deepflow-ce/deepflow-agent:v6.6
+    container_name: deepflow-agent
+    restart: always
+    ## 是否权限最大化
+    privileged: true
+    cap_add:
+      - CAP_SYS_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - SYS_PTRACE
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYSLOG
+    volumes:
+      - /etc/deepflow-agent.yaml:/etc/deepflow-agent/deepflow-agent.yaml:ro
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    network_mode: "host"
+    pid: "host"
+```
+
+
+
+## 采集器对接失败排障流程
+
+### Server 问题
+
+Server 启动失败时，问题通常源于 MySQL 的 `db_version` 值不同步。导致此问题的原因一般分为以下两种情况：
+
+- **在此之前部署过 DeepFlow**：如果先前部署 DeepFlow 后卸载，可能由于数据未清理干净导致。清理 MySQL 数据后重新部署即可；
+
+- **本次为首次部署 DeepFlow**：可能由于 deepflow-server 初始化异常导致。可以通过 **`mysql -uroot -pdeepflow`** 连接 mysql 后更改 **`deepflow.db_version`** 为 server log 提示版本即可；
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20250415222425850.png" style="zoom:80%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20250415222854038.png" alt="image-20250415222854038" style="zoom:80%;" />
+
+
+
+### Agent 问题
+
+在本文的部署流程中，采集器最容易出现的问题是注册失败，在采集器日志中表现为此种情况，提示需要检查是否注册成功
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20250415230102344.png" alt="image-20250415230102344" style="zoom:80%;" />
+
+#### 传统服务器采集器注册失败排查流程
+
+1. 查看当前采集器主机网卡是否被默认 **agent-group-config** 组配置中的 [网卡匹配正则](https://www.deepflow.io/docs/zh/configuration/agent/#inputs.cbpf.af_packet.interface_regex) 匹配。如果不在正则匹配范围内，需通过 [deepflow-ctl](https://www.deepflow.io/docs/zh/best-practice/agent-advanced-config/) 更改正则范围。
+2. 过滤 server log 中的 `\[trisolaris\.agentsynchronize\]` 字段，检查其中 Agent IP 和 MAC 是否与实际主机网卡信息一致:
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20250416001952565.png" alt="image-20250416001952565" style="zoom:80%;" />
+
+3. 采集器 IP 被识别为外网：检查采集器 IP 是否包含在 Server [可识别的内网网段](https://www.deepflow.io/docs/zh/ce-install/legacy-host/#%E6%9B%B4%E6%96%B0-deepflow-server-%E9%85%8D%E7%BD%AE ) 中。如果不在列表，需手动将网段添加到 Server 配置。
+
+```yaml
+root@network-demo:~# cat ./deepflow-docker-compose/common/config/deepflow-server/server.yaml
+
+log-file: /var/log/deepflow/server.log
+log-level: info
+controller:
+  genesis:
+    local_ip_ranges:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 169.254.0.0/15
+      - 224.0.0.0-240.255.255.255
+      - 100.42.32.0/24  ## FIXME: 当前采集器 IP 所在网段
+```
+
+3. 采集器向 server 注册时，server 端需要有一个 **domain** 来接收这个采集器（可以把 domain 理解为一个云平台，采集器需要挂在云平台下）。如果采集器部署在主机，或是使用主机网络，则需要创建一个 **agent_sync** 类型的 [domain](https://www.deepflow.io/docs/zh/ce-install/legacy-host/#创建-host-domain)。可通过以下命令验证：
+
+```bash
+## 由于 server 使用宿主机模式，连接时需手动指定 20417 端口
+root@network-demo:~# deepflow-ctl domain list --api-port 20417
+NAME          ID   LCUUID                                 TYPE         CONTROLLER_IP   CREATED_AT            SYNCED_AT             ENABLED   STATE    AGENT_WATCH_K8S
+legacy-host        c5c2667c-1968-598f-a33e-c3282936646a   agent_sync   10.50.72.100    2025-04-14 14:41:30   2025-04-15 23:38:10   ENABLE    NORMAL
+```
+
+4. 检查 **agent-group-config** 配置是否正确：
+
+```bash
+root@network-demo:~# deepflow-ctl agent-group-config list --api-port 20417
+NAME          AGENT_GROUP_ID   
+legacy-host   g-TE8la86jlZ
+```
+
+```yaml
+root@network-demo:~# deepflow-ctl agent-group-config list g-TE8la86jlZ -o yaml --api-port 20417
+global:
+  communication:
+    ingester_port: 20033  #FIXME: 如果 agent 与 server 间存在 lb，此处应为 lb port
+    ingester_ip: "${DEEPFLOW_SERVER_IP}"  #FIXME: 如果 agent 与 server 间存在 lb，此处应为 lb ip
+    proxy_controller_port: 20035  #FIXME: 如果 agent 与 server 间存在 lb，此处应为 lb port
+    proxy_controller_ip: "${DEEPFLOW_SERVER_IP}"  #FIXME 如果 agent 与 server 间存在 lb，此处应为 lb ip
+
+inputs:
+  resources:
+    private_cloud:
+      ## 本文 agent 使用宿主机网络部署，需开启此配置
+      ## https://www.deepflow.io/docs/zh/configuration/agent/#inputs.resources.private_cloud.hypervisor_resource_enabled
+      hypervisor_resource_enabled: true
+```
+
+5. 检查采集器连接 Server 的配置是否正确：
+
+```yaml
+root@network-demo:~# cat /etc/deepflow-agent.yaml 
+
+controller-ips:
+- 10.50.72.100
+
+controller-port: 20035
+
+vtap-group-id-request: "g-TE8la86jlZ"
 ```
 
