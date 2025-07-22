@@ -12,8 +12,8 @@ demo   Ready    control-plane   38h   v1.31.10   10.51.0.100   <none>        Ubu
 
 # 简化默认面板
 
-    项目中 Grafana 会通过 configMap 默认加载很多面板,例如 Node(AIX, MacOS,), k8s(Windows) 等面板,这部分内容通常不会使用,可以在部署时从 configMap(grafana-dashboardDefinitions.yaml) 中删除.
-    当然,其实可以把整个引用的 configMap 都去掉,具体需要什么面板直接从 [Grafana Dashboard](https://grafana.com/grafana/dashboards/) 获取即可,面板使用的 configMap 格式:
+  项目中 Grafana 会通过 configMap 默认加载很多面板,例如 Node(AIX, MacOS,), k8s(Windows) 等面板,这部分内容通常不会使用,可以在部署时从 configMap(grafana-dashboardDefinitions.yaml) 中删除.
+  当然,其实可以把整个引用的 configMap 都去掉,具体需要什么面板直接从 [Grafana Dashboard](https://grafana.com/grafana/dashboards/) 获取即可,面板使用的 configMap 格式:
 
 ```yaml
 apiVersion: v1              
@@ -30,9 +30,9 @@ metadata:
   namespace: monitoring
 ```
 
-    更换所需面板后,可将数据存储到 MySQL 或 k8s 持久化存储中.例如:
+  更换所需面板后,可将数据存储到 MySQL 或 k8s 持久化存储中.例如:
 
-    > 注: `datasources` 和 `dashboards` 等配置文件,可在最初默认部署 Grafana 后调整,调整后从 Pod 中 Copy 出来再持久化
+  > 注: `datasources` 和 `dashboards` 等配置文件,可在最初默认部署 Grafana 后调整,调整后从 Pod 中 Copy 出来再持久化
 
 ```yaml
   volumes:
