@@ -42,13 +42,13 @@ free -h
 
 # 环境变量
 
-    将 vim 作为默认打开方式
+  将 vim 作为默认打开方式
 
 ```bash
 echo "export EDITOR=vim" >> /etc/profile
 ```
 
-    更改 alias(看个人习惯)
+  更改 alias(看个人习惯)
 
 ```bash
 vim /root/.bashrc
@@ -171,7 +171,7 @@ net.ipv6.conf.lo.disable_ipv6 = 1
 EOF
 ```
 
-    加载添加的内核参数
+  加载添加的内核参数
 
 ```bash
 sysctl -p
@@ -287,3 +287,94 @@ apt-get autoremove --purge -y
 ## 操作后重启下服务器
 reboot
 ```
+
+## 去除部分连接后的提示
+
+  通过 ssh 工具连接服务器后,会有一大段默认的在 `/etc/update-motd.d/` 目录下的脚本输出:
+
+```bash
+WARNING! The remote SSH server rejected X11 forwarding request.
+Welcome to Ubuntu 24.04.2 LTS (GNU/Linux 6.8.0-53-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Wed Jul 23 09:53:08 AM CST 2025
+
+  System load:  0.0                Processes:               370
+  Usage of /:   5.7% of 193.83GB   Users logged in:         0
+  Memory usage: 6%                 IPv4 address for ens160: x.x.x.x
+  Swap usage:   0%
+
+ * Strictly confined Kubernetes makes edge and IoT secure. Learn how MicroK8s
+   just raised the bar for easy, resilient and secure K8s cluster deployment.
+
+   https://ubuntu.com/engage/secure-kubernetes-at-the-edge
+
+Expanded Security Maintenance for Applications is not enabled.
+
+0 updates can be applied immediately.
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+Failed to connect to https://changelogs.ubuntu.com/meta-release-lts. Check your Internet connection or proxy settings
+
+
+*** System restart required ***
+Last login: Tue Jul 22 21:57:33 2025 from x.x.x.x
+
+```
+
+  按照个人习惯,可以增加或删除部分内容.本次仅保留以下内容,其余全部删除:
+
+```bash
+ System information as of Wed Jul 23 09:53:08 AM CST 2025
+
+  System load:  0.0                Processes:               370
+  Usage of /:   5.7% of 193.83GB   Users logged in:         0
+  Memory usage: 6%                 IPv4 address for ens160: 10.50.72.100
+  Swap usage:   0%
+```
+
+  查看并更改当前连接后自动执行的脚本文件:
+
+```bash
+root@demo:~# ll /etc/update-motd.d/
+total 48K
+lrwxrwxrwx 1 root root   46 Jul 22 21:47 50-landscape-sysinfo -> /usr/share/landscape/landscape-sysinfo.wrapper
+-rwxr-xr-x 1 root root  218 Feb 17 05:04 90-updates-available
+-rwxr-xr-x 1 root root  296 Feb 17 05:04 91-contract-ua-esm-status
+-rwxr-xr-x 1 root root  379 Feb 17 05:04 95-hwe-eol
+-rwxr-xr-x 1 root root  111 Feb 17 05:04 97-overlayroot
+-rwxr-xr-x 1 root root  142 Feb 17 05:04 98-fsck-at-reboot
+-rwxr-xr-x 1 root root  144 Feb 17 05:04 98-reboot-required
+-rwxr-xr-x 1 root root  558 Jun 22  2024 91-release-upgrade
+-rwxr-xr-x 1 root root 1.2K Apr 22  2024 00-header
+-rwxr-xr-x 1 root root 1.2K Apr 22  2024 10-help-text
+-rwxr-xr-x 1 root root 5.0K Apr 22  2024 50-motd-news
+-rwxr-xr-x 1 root root  165 Feb 13  2024 92-unattended-upgrades
+
+
+chmod -x /etc/update-motd.d/*
+chmod +x /etc/update-motd.d/50-landscape-sysinfo
+```
+
+  上述操作执行后重新连接即可,本次使用 Xshell 连接中断时,会出现一条告警.这是因为 Xshell 尝试启用 X11 forwarding(X11 图形界面转发),但服务端没有接受(服务器一般不会装图形界面):
+
+```bash
+WARNING! The remote SSH server rejected X11 forwarding request.
+```
+
+  关闭 sshd 对应参数后,修改 Xshell 连接配置
+
+```bash
+vim /etc/ssh/sshd_config
+X11Forwarding no
+
+
+systemctl restart ssh.service
+```
+
+![alt text](<image/Ubuntu Server 初始化流程/Snipaste_2025-07-23_10-44-02.png>)
