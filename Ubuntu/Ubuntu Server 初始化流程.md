@@ -120,10 +120,6 @@ cat >> /etc/sysctl.conf  <<EOF
 
 kernel.numa_balancing = 0
 
-fs.aio-max-nr = 2097152
-fs.file-max = 76724600
-fs.nr_open = 20480000
-
 net.bridge.bridge-nf-call-iptables = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 
@@ -134,10 +130,11 @@ vm.zone_reclaim_mode = 0
 vm.overcommit_memory = 1
 vm.min_free_kbytes = 204800
 
-fs.nr_open=52706963
-fs.file-max=52706963
-fs.inotify.max_user_watches=89100
-fs.inotify.max_user_instances=65536
+fs.nr_open = 52706963
+fs.file-max = 76724600
+fs.aio-max-nr = 2097152
+fs.inotify.max_user_watches = 89100
+fs.inotify.max_user_instances = 65536
 
 net.core.somaxconn = 16384
 net.core.rmem_max = 4194304
@@ -277,6 +274,11 @@ apt-get purge nano -y
 
 ## 防火墙,类似 firewalld
 apt-get purge ufw -y
+
+
+## 默认 DNS 解析服务,会动态生成 /run/systemd/resolve/stub-resolv.conf 软连接到 /etc/resolv.conf
+## 不需要他来管理,自己手动管理 /etc/resolv.conf
+apt-get purge systemd-resolved -y
 
 
 ## 自动卸载不需要的依赖
