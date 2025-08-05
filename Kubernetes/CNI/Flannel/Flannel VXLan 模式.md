@@ -20,7 +20,6 @@ root@network-demo:~/# cat 1-setup-env.sh
 #!/bin/bash
 set -v
 
-# vyos version [v1.4.9 ] docker pull burlyluo/vyos:1.4.9
 # iptables fwd [iptables -L | grep policy || and then: systemctl cat docker >> ExecStartPost=/sbin/iptables -P FORWARD ACCEPT]
 
 # for tool in {wget,kind,kubectl,helm,docker,clab}; do
@@ -794,6 +793,8 @@ Run 'containerlab version upgrade' to upgrade or go check other installation opt
 +---+--------------------+--------------+-------------------------+-------+---------+----------------+----------------------+
 ```
 
+  创建时监控内核上报的网络事件：`ip -ts monitor all > /root/startup_monitor.txt`
+
 ![创建流程展示](<image/Flannel VXLan 模式/Snipaste_2025-05-16_10-28-39.png>)
 
 3. 验证创建结果
@@ -860,15 +861,15 @@ PodName: server2 | PodIP: eth0 172.20.20.4/24 eth0 3fff:172:20:20::4/64
 
 6. 请求时抓包
 
-  server：终端设备，类似于主机。三台节点不属于同一网段，本身并不能直接互联，而是通过 VXLAN 隧道间接连接。当 server1 向 server2 发包时：
-    1. vtep1 收到 server1 发给 10.244.2.10 的包
-    2. 查路由：10.244.2.0/24 通过 vxlan0
-    3. 查 ARP / FDB 表：IP 10.244.2.0 -> MAC 02:42:8f:11:22:20 -> VXLAN 发给 10.1.8.10（vtep2）
-    4. 封装成 VXLAN 发给 vtep2 的 10.1.8.10 地址
-    5. vtep2 收到后解封，发给 server2  
-  vtep：虚拟隧道端点，类似于交换机，创建 vxlan0 网口封装/解封装 VXLAN，发送到其他 VTEP 的 IP
-    - 配置静态 ARP（知道远程 server 的 IP 和 MAC）
+  **server**：终端设备，类似于主机。三台节点不属于同一网段，本身并不能直接互联，而是通过 VXLAN 隧道间接连接。当 server1 向 server2 发包时：
+    1. vtep1 收到 server1 发给 10.244.2.10 的包  
+    2. 查路由：10.244.2.0/24 通过 vxlan0  
+    3. 查 ARP / FDB 表：IP 10.244.2.0 -> MAC 02:42:8f:11:22:20 -> VXLAN 发给 10.1.8.10（vtep2）  
+    4. 封装成 VXLAN 发给 vtep2 的 10.1.8.10 地址  
+    5. vtep2 收到后解封，发给 server2    
+  **vtep**：虚拟隧道端点，类似于交换机，创建 vxlan0 网口封装/解封装 VXLAN，发送到其他 VTEP 的 IP  
+    - 配置静态 ARP（知道远程 server 的 IP 和 MAC）  
     - 配置静态 FDB（知道 MAC 需要通过 VXLAN 发往哪个 IP）  
-  GW：网关，路由器功能  
+  **GW**：网关，路由器功能  
 
 ![自定义 vxlan 环境抓包](<image/Flannel VXLan 模式/Snipaste_2025-08-05_22-22-16.png>)
